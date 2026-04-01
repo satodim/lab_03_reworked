@@ -1,1035 +1,573 @@
-# lab_02
-
+#Laboratory work 3
 ## Tutorial
+### $ Выполним уже привычные нам команды, экспортирует имя пользователя, сменим дирректорию, активируем скрипты
 
-### Проинициализируем нужные для работы переменные, перейдем в рабочее пространство и активируем ранее подготовленные скрипты.
 ```sh
-export GITHUB_USERNAME=satodim
-export GITHUB_EMAIL=<адрес_почтового_ящика>
-export GITHUB_TOKEN=<сгенирированный_токен>
-alias edit=nano
+$ export GITHUB_USERNAME=<имя_пользователя>
 
-cd ${GITHUB_USERNAME}/workspace
-source scripts/activate
+$ cd ${GITHUB_USERNAME}/workspace
+$ pushd .
+$ source scripts/activate
 ```
-
-### Теперь создадим папку `.config`, в ней файл конфигурации `hub` с необходимыми переменными:
+### Клонируем вторую лабу в новый репозиторий и перепривяжем origin
 
 ```sh
-mkdir ~/.config
-cat > ~/.config/hub <<EOF
-github.com:
-- user: ${GITHUB_USERNAME}
-  oauth_token: ${GITHUB_TOKEN}
-  protocol: https
+$ git clone https://github.com/${GITHUB_USERNAME}/lab02.git projects/lab03
+$ cd projects/lab03
+$ git remote remove origin
+$ git remote add origin https://github.com/${GITHUB_USERNAME}/lab03.git
+```
+### Компилируем файл *print.cpp* получаем *print.o* и проеверяем его существование в дирректории
+```sh
+ g++ -std=c++11 -I./include -c sources/print.cpp
+$ ls print.o
+```
+### Выводим строки с символами *print*, архивируем *print.o* и получаем *print.a*, выводим его тип
+```sh
+$ nm print.o | grep print
+$ ar rvs print.a print.o
+$ file print.a
+```
+### Делаем почти то же самое с *example1*, линкуем его с *print.a* и выводим результат
+```sh
+++ -std=c++11 -I./include -c examples/example1.cpp
+$ ls example1.o
+$ g++ example1.o print.a -o example1
+$ ./example1 && echo
+```
+*Вывод*:
+```sh
+hello
+```
+### Также линкуем *exzmple2* с *print.a* и выводим *log.txt* в терминал, перед этим с помощью nm выводим таблицу символов объектного файла
+```sh
+$ g++ -std=c++11 -I./include -c examples/example2.cpp
+$ nm example2.o
+$ g++ example2.o print.a -o example2
+$ ./example2
+$ cat log.txt && echo
+```
+### Очищаем артефакты сборки
+``` sh
+$ rm -rf example1.o example2.o print.o
+$ rm -rf print.a
+$ rm -rf example1 example2
+$ rm -rf log.txt
+```
+*Вывод*: 
+```sh 
+hello
+```
+### Создаем и заполняем *CmakeLists.txt* с помощью *cat*
+``` sh$ cat > CMakeLists.txt <<EOF
+cmake_minimum_required(VERSION 3.4)
+project(print)
 EOF
-git config --global hub.protocol https
-```
-последней командой установим протокол `https` для работы с гитхабом.
 
-Создаём папку для второй лабы и переходим туда
-```sh
-mkdir projects/lab_02_rework && cd projects/lab_02_rework
-```
-Создаем новый репозиторий
-```sh
-git init
-```
+$ cat >> CMakeLists.txt <<EOF
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+EOF
 
-Вывод предупреждает о том, что текущая ветка называется `master`:
-```
-hint: Using 'master' as the name for the initial branch. This default branch name
-hint: is subject to change. To configure the initial branch name to use in all
-hint: of your new repositories, which will suppress this warning, call:
-hint: 
-hint:  git config --global init.defaultBranch <name>
-hint: 
-hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
-hint: 'development'. The just-created branch can be renamed via this command:
-hint: 
-hint:  git branch -m <name>
-Initialized empty Git repository in /home/vboxuser/satodim/workspace/workspace/projects/lab_02/.git/
-```
-На гитхабе главная ветка называется `main`, поэтому  переименуем локальную ветку `master` в `main`
+$ cat >> CMakeLists.txt <<EOF
+add_library(print STATIC \${CMAKE_CURRENT_SOURCE_DIR}/sources/print.cpp)
+EOF
 
-```sh
-git branch -m main
+$ cat >> CMakeLists.txt <<EOF
+include_directories(\${CMAKE_CURRENT_SOURCE_DIR}/include)
+EOF
 ```
 
-### Установим юзернейм и почту для гита:
+### Генерируем систему сборки и загружаем ее в _build
+``` sh
+
+$ cmake -H. -B_build
+$ cmake --build _build
+```
+*Вывод1*:
 ```sh
-git config --global user.name ${GITHUB_USERNAME}
-git config --global user.email ${GITHUB_EMAIL}
+CMake Deprecation Warning at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.5 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value or use a ...<max> suffix to tell
+  CMake that the project does not need compatibility with older versions.
+
+
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/vboxuser/satodim/workspace/workspace/projects/lab03/_build
+```
+*Вывод2*:
+```sh
+[ 50%] Building CXX object CMakeFiles/print.dir/sources/print.cpp.o
+[100%] Linking CXX static library libprint.a
+[100%] Built target print
+```
+### Дополняем *CmakeLists.tst*
+```sh
+$ cat >> CMakeLists.txt <<EOF
+
+add_executable(example1 \${CMAKE_CURRENT_SOURCE_DIR}/examples/example1.cpp)
+add_executable(example2 \${CMAKE_CURRENT_SOURCE_DIR}/examples/example2.cpp)
+EOF
+
+$ cat >> CMakeLists.txt <<EOF
+
+target_link_libraries(example1 print)
+target_link_libraries(example2 print)
+EOF
+```
+### Делаем сначала полную сборку, а потом по очереди *print*, *example1*, *example2*
+``` sh
+$ cmake --build _build
+$ cmake --build _build --target print
+$ cmake --build _build --target example1
+$ cmake --build _build --target example2
+```
+*Вывод потчи везде одинаковый*:
+```sh
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/vboxuser/satodim/workspace/workspace/projects/lab03/_build
+[ 33%] Built target print
+[ 50%] Building CXX object CMakeFiles/example1.dir/examples/example1.cpp.o
+[ 66%] Linking CXX executable example1
+[ 66%] Built target example1
+[ 83%] Building CXX object CMakeFiles/example2.dir/examples/example2.cpp.o
+[100%] Linking CXX executable example2
+[100%] Built target example2
+```
+*и*:
+```sh
+[100%] Built target print
+```
+### Выводим подробную информацию о файле *libprint.a* и запусскаем 2 примера, после чего удаляем *log.txt*
+```sh
+$ ls -la _build/libprint.a
+$ _build/example1 && echo
+hello
+$ _build/example2
+$ cat log.txt && echo
+hello
+$ rm -rf log.txt
+```
+*Вывод (1)*:
+```sh
+rw-rw-r-- 1 vboxuser vboxuser 2246 Mar 22 11:49 _build/libprint.a
+```
+*Вывод (2)*:
+```sh 
+hellohello
+```
+*Вывод (3)*:
+``` sh
+hellohello
+```
+### Копируем с удаленного репозитория лабу в tmp и перемещаем от туда CmakeLists.tst, потом удаляем tmp
+``` sh
+$ git clone https://github.com/tp-labs/lab03 tmp
+$ mv -f tmp/CMakeLists.txt .
+$ rm -rf tmp
+```
+*вывод:*
+```sh
+Cloning into 'tmp'...
+remote: Enumerating objects: 91, done.
+remote: Counting objects: 100% (30/30), done.
+remote: Compressing objects: 100% (9/9), done.
+remote: Total 91 (delta 23), reused 21 (delta 21), pack-reused 61 (from 1)
+Receiving objects: 100% (91/91), 1.02 MiB | 476.00 KiB/s, done.
+Resolving deltas: 100% (41/41), done.
+```
+### Смотрим содержимое файла CmakeLists.txt и конфигурируем проект с помощью cmake, после собираем и устанавливаем проект и выводим структуру _install
+```sh
+$ cat CMakeLists.txt
+$ cmake -H. -B_build -DCMAKE_INSTALL_PREFIX=_install
+$ cmake --build _build --target install
+$ tree _install
+```
+*Вывод:*
+```sh
+cmake_minimum_required(VERSION 3.4)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+option(BUILD_EXAMPLES "Build examples" OFF)
+
+project(print)
+
+add_library(print STATIC ${CMAKE_CURRENT_SOURCE_DIR}/sources/print.cpp)
+
+target_include_directories(print PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+if(BUILD_EXAMPLES)
+  file(GLOB EXAMPLE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp")
+  foreach(EXAMPLE_SOURCE ${EXAMPLE_SOURCES})
+    get_filename_component(EXAMPLE_NAME ${EXAMPLE_SOURCE} NAME_WE)
+    add_executable(${EXAMPLE_NAME} ${EXAMPLE_SOURCE})
+    target_link_libraries(${EXAMPLE_NAME} print)
+    install(TARGETS ${EXAMPLE_NAME}
+      RUNTIME DESTINATION bin
+    )
+  endforeach(EXAMPLE_SOURCE ${EXAMPLE_SOURCES})
+endif()
+
+install(TARGETS print
+    EXPORT print-config
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+)
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/ DESTINATION include)
+install(EXPORT print-config DESTINATION cmake)
 ```
 
-И проверим, что все пошло по плану:
+*Вывод 2:*
 ```sh
-git config -e --global
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/vboxuser/satodim/workspace/workspace/projects/lab03/_build
 ```
+*Вывод 3:*
+``` sh
+[100%] Built target print
+Install the project...
+-- Install configuration: ""
+-- Installing: /home/vboxuser/satodim/workspace/workspace/projects/lab03/_install/lib/libprint.a
+-- Installing: /home/vboxuser/satodim/workspace/workspace/projects/lab03/_install/include
+-- Installing: /home/vboxuser/satodim/workspace/workspace/projects/lab03/_install/include/print.hpp
+-- Installing: /home/vboxuser/satodim/workspace/workspace/projects/lab03/_install/cmake/print-config.cmake
+-- Installing: /home/vboxuser/satodim/workspace/workspace/projects/lab03/_install/cmake/print-config-noconfig.cmake
+```
+*Вывод 4:*
+``` sh
+├── cmake
+│   ├── print-config.cmake
+│   └── print-config-noconfig.cmake
+├── include
+│   └── print.hpp
+└── lib
+    └── libprint.a
 
+4 directories, 4 files
 ```
-[hub]
-        protocol = https
-[user]
-        name = satodim
-        email = ...@gmail.com
-```
-### Все установилось правильно, привяжем локальную директорию с созданным удаленно репозиторием:
+### Коммитим и пушим на гитхаб
 ```sh
-git remote add origin https://github.com/${GITHUB_USERNAME}/lab_02.git
+$ git add CMakeLists.txt
+$ git commit -m"added CMakeLists.txt"
+$ git push origin master
 ```
-
-И загрузим все, что есть в этом репозитории, на наш компьютер
-```sh
-git pull origin main
-```
-
-Вывод предыдущей команды:
-```sh
+*Вывод :*
+``` sh
 Username for 'https://github.com': satodim
 Password for 'https://satodim@github.com': 
-Enumerating objects: 3, done.
-Counting objects: 100% (3/3), done.
-Writing objects: 100% (3/3), 219 bytes | 109.00 KiB/s, done.
-Total 3 (delta 0), reused 0 (delta 0), pack-reused 0
-To https://github.com/satodim/lab_02_rework.git
- * [new branch]      main -> main
-
-```
- 
-### Создадим `README.md`
-```sh
-touch README.md
-```
- 
-### Теперь посмотрим на статусы файлов в папке
-```sh
-git status
-```
- 
-```
-
-No commits yet
-
-Untracked files:
-  (use "git add <file>..." to include in what will be committed)
-	README.md
-
-nothing added to commit but untracked files present (use "git add" to track)
-
-```
-
-### Видно, что новосозданный README пока что никак не участвует в репозитории, поэтому мы можем его добавить и сделать новый коммит:
-```sh
-git add README.md
-git commit -m "added README.md"
-```
-
-```
-[main (root-commit) 47d8633] added README.md
- 1 file changed, 0 insertions(+), 0 deletions(-)
- create mode 100644 README.md
-
-```
-
-### Запушим локальный коммит на удаленный репозиторий
-```sh
-git push origin main
-```
-
-```
-Username for 'https://github.com': satodim
-Password for 'https://satodim@github.com': 
-Enumerating objects: 4, done.
-Counting objects: 100% (4/4), done.
+Enumerating objects: 32, done.
+Counting objects: 100% (32/32), done.
 Delta compression using up to 2 threads
-Compressing objects: 100% (2/2), done.
-Writing objects: 100% (3/3), 282 bytes | 282.00 KiB/s, done.
-Total 3 (delta 0), reused 0 (delta 0), pack-reused 0
-To https://github.com/satodim/lab_02.git
-   9a76e6f..200709d  main -> main
+Compressing objects: 100% (30/30), done.
+Writing objects: 100% (32/32), 14.70 KiB | 7.35 MiB/s, done.
+Total 32 (delta 3), reused 25 (delta 1), pack-reused 0
+remote: Resolving deltas: 100% (3/3), done.
+To https://github.com/satodim/lab03.git
+ * [new branch]      main -> main
 ```
+## Homework
+### Задание 1
+*Вам поручили перейти на систему автоматизированной сборки CMake. Исходные файлы находятся в директории formatter_lib. В этой директории находятся файлы для статической библиотеки formatter. Создайте CMakeList.txt в директории formatter_lib, с помощью которого можно будет собирать статическую библиотеку formatter.*
 
-На гитхабе появился README.
-
-### Теперь удаленно создадим `.gitignore` и загрузим к нам.
-
-На всякий случай убедимся, что все действительно загрузилось:
+### Выполнение
+#### *Для начала нужно создать необходимые репозитории для работы*
+``` sh
+$ mkdir formatter_lib
+$ mkdir formatter_ex_lib
+$ mkdir hello_world
+$ mkdir solver
+$ mkdir solver_lib
+```
+#### *Перейдем в первый репозиторий и заполним файлы*
+1) *CMakeLists.txt*
 ```sh
-ls -a
-```
+cat > CMakeLists.txt << 'EOF'
+cmake_minimum_required(VERSION 3.10)
+project(formatter_lib)
 
-```
-.  ..  .git  .gitignore  README.md
-```
-Действительно, `.gitignore` загрузился
+file(GLOB SOURCES "*.cpp")
+add_library(formatter STATIC ${SOURCES})
 
-### Посмотрим на историю репозитория 
-```sh
-git log
-```
-
-```
-commit 6d18420accea3fed9081f83583cfcd58ac0cfc1b (HEAD -> main, origin/main)
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 09:01:02 2026 +0300
-
-    Create .gitignore
-
-commit 47d86333afde59b4097550e9d33ac9f7c45996ca
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 05:55:46 2026 +0000
-
-    added README.md
-
-```
-### Ну и теперь создадим несколько `cpp` файлов
-
-```sh
-mkdir sources
-mkdir include
-mkdir examples
-
-cat > sources/print.cpp <<EOF
-#include <print.hpp>
-
-void print(const std::string& text, std::ostream& out)
-{
-  out << text;
-}
-
-void print(const std::string& text, std::ofstream& out)
-{
-  out << text;
-}
+target_include_directories(formatter PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>
+)
 EOF
+```
+2) *formatter.h*
+```sh
+cat > formatter.h << 'EOF'
+#pragma once
 
-cat > include/print.hpp <<EOF
-#include <fstream>
-#include <iostream>
 #include <string>
 
-void print(const std::string& text, std::ofstream& out);
-void print(const std::string& text, std::ostream& out = std::cout);
+std::string formatter(const std::string& message);
 EOF
+```
+3) *formatter.cpp*
+```sh
+cat > formatter.cpp << 'EOF'
+#include "formatter.h"
 
-cat > examples/example1.cpp <<EOF
-#include <print.hpp>
-
-int main(int argc, char** argv)
+std::string formatter(const std::string& message)
 {
-  print("hello");
-}
-EOF
-
-cat > examples/example2.cpp <<EOF
-#include <print.hpp>
-
-#include <fstream>
-
-int main(int argc, char** argv)
-{
-  std::ofstream file("log.txt");
-  print(std::string("hello"), file);
+    std::string res;
+    res += "-------------------------\n";
+    res += message + "\n";
+    res += "-------------------------\n";
+    return res;
 }
 EOF
 ```
+### Задание 2
+*У компании "Formatter Inc." есть перспективная библиотека, которая является расширением предыдущей библиотеки. Т.к. вы уже овладели навыком созданием CMakeList.txt для статической библиотеки formatter, ваш руководитель поручает заняться созданием CMakeList.txt для библиотеки formatter_ex, которая в свою очередь использует библиотеку formatter.*
 
-### Коммитим и пушим их:
+### Выполнение
+#### Перейдем в вторую библиотеку и заполним там файлы
+1)*CMakeLists.txt*
 ```sh
-git add .
-git commit -m"added sources"
-git push origin master
+cat > CMakeLists.txt << 'EOF'
+cmake_minimum_required(VERSION 3.10)
+project(formatter_ex)
+
+file(GLOB SOURCES "*.cpp")
+add_library(formatter_ex STATIC ${SOURCES})
+
+target_link_libraries(formatter_ex PRIVATE formatter)
+
+target_include_directories(formatter_ex PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>
+)
+EOF
 ```
-# Homework
-
-## Part I
-
-### Создайте пустой репозиторий на сервисе github.com
-
-Создали **этот** репозиторий
-
-### Выполните инструкцию по созданию первого коммита на странице репозитория, созданного на предыдущем шаге.
-
+2) *formatter_ex.h*
 ```sh
-git init
-git branch -m main
-git remote add origin https://github.com/satodim/lab_02_rework
-git pull origin main
-```
+cat > formatter_ex.h << 'EOF'
+#pragma once
 
-Вывод последней команды:
-
-```
-Username for 'https://github.com': satodim
-Password for 'https://satodim@github.com': 
-Enumerating objects: 10, done.
-Counting objects: 100% (10/10), done.
-Delta compression using up to 2 threads
-Compressing objects: 100% (7/7), done.
-Writing objects: 100% (9/9), 929 bytes | 929.00 KiB/s, done.
-Total 9 (delta 0), reused 0 (delta 0), pack-reused 0
-To https://github.com/satodim/lab_02_rework.git
-   6d18420..7fdb656  main -> main
-```
-
-### Создайте файл `hello_world.cpp` в локальной копии репозитория (который должен был появиться на шаге 2). Реализуйте программу Hello world на языке C++ используя плохой стиль кода. Например, после заголовочных файлов вставьте строку `using namespace std;`.
-
-Этот файл:
-```cpp
-#include <iostream>
-using namespace std;
-
-int main() {
-	cout << "Hello world!" << name << endl;
-	return 0;
-}
-```
-
-### Добавьте этот файл в локальную копию репозитория.
-```sh
-git add hello_world.cpp
-```
-
-### Закоммитьте изменения с осмысленным сообщением.
-```sh
-git commit -m "hello_world.cpp"
-```
-
-```
-[main 83c293e] hello_world.cpp
- 1 file changed, 7 insertions(+)
- create mode 100644 hello_world.cpp
-```
-### Изменитьте исходный код так, чтобы программа через стандартный поток ввода запрашивалось имя пользователя. А в стандартный поток вывода печаталось сообщение Hello world from @name, где @name имя пользователя.
-
-Новая версия программы
-```cpp
-#include <iostream>
-using namespace std;
-
-int main() {
-	string name;
-	cin >> name;
-	cout << "Hello world from " << name << endl;
-	return 0;
-}
-```
-
-### Закоммитьте новую версию программы. Почему не надо добавлять файл повторно `git add`?
-
-```sh
-git commit -a -m "added hello_world.cpp"
-```
-
-`-a` означает коммит всех измененных файлов, чтобы этот файл смог закоммититься.
-
-### Запуште изменения в удалёный репозиторий.
-
-```sh
-git push origin main
-```
-
-```
-Username for 'https://github.com': satodim
-Password for 'https://satodim@github.com': 
-Enumerating objects: 7, done.
-Counting objects: 100% (7/7), done.
-Delta compression using up to 2 threads
-Compressing objects: 100% (6/6), done.
-Writing objects: 100% (6/6), 710 bytes | 710.00 KiB/s, done.
-Total 6 (delta 2), reused 0 (delta 0), pack-reused 0
-remote: Resolving deltas: 100% (2/2), completed with 1 local object.
-To https://github.com/satodim/lab_02_rework.git
-   7fdb656..da64f08  main -> main
-
-```
-
-### Проверьте, что история коммитов доступна в удалённом репозитории.
-
-```sh
-git log
-```
-
-```
-commit da64f0863055e8e698ab45eae44a9f93682e3b55 (HEAD -> main, origin/main)
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 06:10:11 2026 +0000
-
-    added hello_world.cpp
-
-commit 83c293ee46d965dedf8bfe8df46a39d96a5d9641
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 06:09:01 2026 +0000
-
-    hello_world.cpp
-
-commit 7fdb6566f1b29be58b3aa77c8cb027db3f24730a
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 06:04:33 2026 +0000
-
-    added sources
-
-commit 6d18420accea3fed9081f83583cfcd58ac0cfc1b
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 09:01:02 2026 +0300
-
-    Create .gitignore
-
-```
-## Part II
-
-### В локальной копии репозитория создайте локальную ветку `patch1`.
-
-```sh
-git checkout -b patch1
-```
-
-### Внесите изменения в ветке `patch1` по исправлению кода и избавления от `using namespace std;`.
-
-Новый код:
-```cpp
+#include <string>
 #include <iostream>
 
-int main() {
-	std::string name;
-	std::cin >> name;
-	std::cout << "Hello world from " << name << std::endl;
-	return 0;
-}
+std::ostream& formatter(std::ostream& out, const std::string& message);
+EOF
 ```
-
-### **commit**, **push** локальную ветку в удалённый репозиторий.
-
-``` sh
-git commit -a -m "removed using namespace std"
-```
-
-```
-[patch1 17308f9] removed using namespace std
- 1 file changed, 3 insertions(+), 4 deletions(-)
-
-```
-
+3) *formatter_ex.cpp*
 ```sh
-git push origin patch1
-```
+cat > formatter_ex.cpp << 'EOF'
+#include "formatter_ex.h"
 
-```
-Username for 'https://github.com': satodim
-Password for 'https://satodim@github.com': 
-Enumerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 2 threads
-Compressing objects: 100% (3/3), done.
-Writing objects: 100% (3/3), 375 bytes | 187.00 KiB/s, done.
-Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
-remote: Resolving deltas: 100% (1/1), completed with 1 local object.
-remote: 
-remote: Create a pull request for 'patch1' on GitHub by visiting:
-remote:      https://github.com/satodim/lab_02_rework/pull/new/patch1
-remote: 
-To https://github.com/satodim/lab_02_rework.git
- * [new branch]      patch1 -> patch1
+#include "formatter.h"
 
-```
-
-### Проверьте, что ветка `patch1` доступна в удалённом репозитории.
-
-```sh
-git log
-```
-
-```
-commit 17308f944f55bb7adb4f15fc7885b183309b23e1 (HEAD -> patch1, origin/patch1)
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 06:13:21 2026 +0000
-
-    removed using namespace std
-
-commit da64f0863055e8e698ab45eae44a9f93682e3b55 (origin/main, main)
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 06:10:11 2026 +0000
-
-    added hello_world.cpp
-
-commit 83c293ee46d965dedf8bfe8df46a39d96a5d9641
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 06:09:01 2026 +0000
-
-    hello_world.cpp
-
-commit 7fdb6566f1b29be58b3aa77c8cb027db3f24730a
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 06:04:33 2026 +0000
-
-    added sources
-```
-
-### Я сделал pull-request удаленно на гитхабе. В этом убедимся с помощью утилиты `gh`.
-```sh
-gh pr view --json number,title,author
-```
-вывод:
-```
+std::ostream& formatter(std::ostream& out, const std::string& message)
 {
-  "author": {
-    "id": "U_kgDOCjA-pg",
-    "is_bot": false,
-    "login": "satodim",
-    "name": "satodim"
-  },
-  "number": 1,
-  "title": "removed using namespace std"
+    return out << formatter(message);
 }
+EOF
 ```
+### Задание 3
+*Конечно же ваша компания предоставляет примеры использования своих библиотек. Чтобы продемонстрировать как работать с библиотекой formatter_ex, вам необходимо создать два CMakeList.txt для двух простых приложений:
 
-### В локальной копии в ветке `patch1` добавьте в исходный код комментарии.
+    hello_world, которое использует библиотеку formatter_ex;
+    solver, приложение которое испольует статические библиотеки formatter_ex и solver_lib.
+*
+### Выполнение 
 
-```cpp
-// Подключаем библиотеку ввода-вывода
+#### В этот раз переходим в дирректорию hello_world и заполняем уже там файлы
+1) *CMakeLists.txt*
+```sh
+cat > CMakeLists.txt << 'EOF'
+add_executable(hello_world hello_world.cpp)
+target_link_libraries(hello_world PRIVATE formatter_ex)
+EOF
+```
+2)*formatter_ex.h*
+```sh
+cat > formatter_ex.h << 'EOF'
+#pragma once
+
+#include <string>
 #include <iostream>
 
-int main() {
-	// Создаем строку для имени
-	std::string name;
-	// Принимаем имя
-	std::cin >> name;
-	// Печатаем
-	std::cout << "Hello world from " << name << std::endl;
-	return 0;
-}
+std::ostream& formatter(std::ostream& out, const std::string& message);
+EOF
 ```
-
-### commit, push
-
+3) *hello_world.cpp*
 ```sh
-git commit -a -m "added comments"
-```
+cat > hello_world.cpp << 'EOF'
+#include <iostream>
 
-```
-it -a -m "added comments"
-[patch1 ec63d76] added comments
- 1 file changed, 6 insertions(+)
+#include "formatter_ex.h"
 
-```
-
-```sh
-git push origin patch1
-```
-
-```
-Username for 'https://github.com': satodim
-Password for 'https://satodim@github.com': 
-Enumerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 2 threads
-Compressing objects: 100% (3/3), done.
-Writing objects: 100% (3/3), 491 bytes | 491.00 KiB/s, done.
-Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
-remote: Resolving deltas: 100% (1/1), completed with 1 local object.
-To https://github.com/satodim/lab_02_rework.git
-   17308f9..ec63d76  patch1 -> patch1
-```
-
-### Проверьте, что новые изменения есть в созданном на шаге 5 pull-request
-
-```sh
-gh pr view --json number,title,author,commits
-```
-
-```
+int main()
 {
-  "author": {
-    "id": "U_kgDOCjA-pg",
-    "is_bot": false,
-    "login": "satodim",
-    "name": "satodim"
-  },
-  "commits": [
+    formatter(std::cout, "hello, world!");
+}
+EOF
+```
+#### Теперь перейдем в дирректорию solver_lib и заполним файлы уже там
+1) *CMakeLists.txt*
+```sh
+cat > CMakeLists.txt << 'EOF'
+cmake_minimum_required(VERSION 3.10)
+project(solver_lib)
+
+file(GLOB SOURCES "*.cpp")
+add_library(solver_lib STATIC ${SOURCES})
+
+target_include_directories(solver_lib PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>
+)
+EOF
+```
+2) *solver.h*
+```sh
+cat > solver.h << 'EOF'
+#pragma once
+
+void solve(float a, float b, float c, float& x1, float& x2);
+EOF
+```
+3) *solver.cpp*
+```sh
+cat > solver.cpp << 'EOF'
+#include "solver.h"
+
+#include <stdexcept>
+#include <math.h>
+void solve(float a, float b, float c, float& x1, float& x2)
+{
+    float d = (b * b) - (4 * a * c);
+
+    if (d < 0)
     {
-      "authoredDate": "2026-04-01T06:13:21Z",
-      "authors": [
-        {
-          "email": "vovkakursk8@gmail.com",
-          "id": "U_kgDOCjA-pg",
-          "login": "satodim",
-          "name": "satodim"
-        }
-      ],
-      "committedDate": "2026-04-01T06:13:21Z",
-      "messageBody": "",
-      "messageHeadline": "removed using namespace std",
-      "oid": "17308f944f55bb7adb4f15fc7885b183309b23e1"
-    },
-    {
-      "authoredDate": "2026-04-01T06:16:53Z",
-      "authors": [
-        {
-          "email": "vovkakursk8@gmail.com",
-          "id": "U_kgDOCjA-pg",
-          "login": "satodim",
-          "name": "satodim"
-        }
-      ],
-      "committedDate": "2026-04-01T06:16:53Z",
-      "messageBody": "",
-      "messageHeadline": "added comments",
-      "oid": "ec63d76a70b41ab449700fecb50c6f5099986f96"
+        throw std::logic_error{"error: discriminant < 0"};
     }
-  ],
-  "number": 1,
-  "title": "removed using namespace std"
+
+    x1 = (-b - std::sqrt(d)) / (2 * a);
+    x2 = (-b + std::sqrt(d)) / (2 * a);
 }
+EOF
 ```
-
-### В удалённый репозитории выполните слияние PR `patch1 -> master` и удалите ветку `patch1` в удаленном репозитории.
-
-Сделал это на гитхабе
-
-### Локально выполните **pull**.
-
+#### Меняем дирректорию на solver и проворачиваем похожие действия там
+1) *CMakeLists.txt*
+```sh 
+cat > CMakeLists.txt << 'EOF'
+add_executable(solver equation.cpp)
+target_link_libraries(solver PRIVATE formatter_ex solver_lib)
+EOF
+```
+2) *equation.cpp*
 ```sh
-git checkout main
-git pull origin main
-```
-
-```
-remote: Enumerating objects: 1, done.
-remote: Counting objects: 100% (1/1), done.
-remote: Total 1 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
-Unpacking objects: 100% (1/1), 896 bytes | 896.00 KiB/s, done.
-From https://github.com/satodim/lab_02_rework
- * branch            main       -> FETCH_HEAD
-   da64f08..58b9617  main       -> origin/main
-Updating da64f08..58b9617
-Fast-forward
- hello_world.cpp | 13 +++++++++----
- 1 file changed, 9 insertions(+), 4 deletions(-)
-```
-
-### С помощью команды `git log` просмотрите историю в локальной версии ветки **main**.
-
-```
-commit 58b96171292f6386d087a290c1ed15d3961b5326 (HEAD -> main, origin/main)
-Merge: da64f08 ec63d76
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 09:17:50 2026 +0300
-
-    Merge pull request #1 from satodim/patch1
-    
-    removed using namespace std
-
-commit ec63d76a70b41ab449700fecb50c6f5099986f96 (origin/patch1, patch1)
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 06:16:53 2026 +0000
-
-    added comments
-
-commit 17308f944f55bb7adb4f15fc7885b183309b23e1
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 06:13:21 2026 +0000
-
-    removed using namespace std
-
-commit da64f0863055e8e698ab45eae44a9f93682e3b55
-Author: satodim <vovkakursk8@gmail.com>
-```
-
-### Удалите локальную ветку `patch1`.
-
-```sh
-git branch -d patch1
-```
-
-```
-Deleted branch patch1 (was ec63d76).
-```
-## Part III
-
-### Создайте новую локальную ветку `patch2`.
-
-```sh
-git checkout -b patch2
-```
-
-### Измените code style с помощью утилиты `clang-format`. Например, используя опцию `-style=Mozilla`.
-
-```sh
-clang-format -style=Mozilla -i hello_world.cpp 
-```
-
-код:
-```cpp
-// Подключаем библиотеку ввода-вывода
+cat > equation.cpp << 'EOF'
 #include <iostream>
 
-int
-main()
+#include "formatter_ex.h"
+#include "solver.h"
+
+int main()
 {
-  // Создаем строку для имени
-  std::string name;
-  // Принимаем имя
-  std::cin >> name;
-  // Печатаем
-  std::cout << "Hello world from " << name << std::endl;
-  return 0;
-}
-```
+    float a = 0;
+    float b = 0;
+    float c = 0;
 
-### commit, push, создайте pull-request `patch2 -> master`
+    std::cin >> a >> b >> c;
 
-```sh
-git commit -a -m "changed code style"
-```
+    float x1 = 0;
+    float x2 = 0;
 
-```
-[patch2 369623b] changed code style
- 1 file changed, 10 insertions(+), 10 deletions(-)
-```
-
-```sh
-git push origin patch2
-```
-
-```
-Username for 'https://github.com': satodim
-Password for 'https://satodim@github.com': 
-Enumerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 2 threads
-Compressing objects: 100% (3/3), done.
-Writing objects: 100% (3/3), 396 bytes | 198.00 KiB/s, done.
-Total 3 (delta 2), reused 0 (delta 0), pack-reused 0
-remote: Resolving deltas: 100% (2/2), completed with 2 local objects.
-remote: 
-remote: Create a pull request for 'patch2' on GitHub by visiting:
-remote:      https://github.com/satodim/lab_02_rework/pull/new/patch2
-remote: 
-To https://github.com/satodim/lab_02_rework.git
- * [new branch]      patch2 -> patch2
-```
-
-Также сделаем pull-request и, как и в прошлый раз, проверим его создание с помощью утилиты `gh`:
-
-```sh
-gh pr view --json number,title,author,commits
-```
-
-```
-{
-  "author": {
-    "id": "U_kgDOCjA-pg",
-    "is_bot": false,
-    "login": "satodim",
-    "name": "satodim"
-  },
-  "commits": [
+    try
     {
-      "authoredDate": "2026-04-01T06:20:37Z",
-      "authors": [
-        {
-          "email": "vovkakursk8@gmail.com",
-          "id": "U_kgDOCjA-pg",
-          "login": "satodim",
-          "name": "satodim"
-        }
-      ],
-      "committedDate": "2026-04-01T06:20:37Z",
-      "messageBody": "",
-      "messageHeadline": "changed code style",
-      "oid": "369623bb9d5a230c748a91990d1cabed385b5f82"
-    }
-  ],
-  "number": 2,
-  "title": "changed code style"
-}
+        solve(a, b, c, x1, x2);
+
+        formatter(std::cout, "x1 = " + std::to_string(x1));
+        formatter(std::cout, "x2 = " + std::to_string(x2));
+EOF return 0;tter(std::cout, ex.what());
 ```
-
-### В ветке `main` в удаленном репозитории измените комментарии, например, расставьте знаки препинания, переведите комментарии на другой язык.
-
-Переключимся на векту `main`
+#### Создаем общий CMakeLists.txt
 
 ```sh
-git checkout main
+cat > CMakeLists.txt <<EOL
+cmake_minimum_required(VERSION 3.10)
+project(Formatter_Inc)
+
+add_subdirectory(formatter_lib)
+add_subdirectory(formatter_ex)
+add_subdirectory(solver_lib)
+add_subdirectory(hello_world)
+add_subdirectory(solver)
+EOL
 ```
-
-И переведем комментарии на английский:
-```cpp
-// including standard IO library
-#include <iostream>
-
-int main() {
-	// creating string for name
-	std::string name;
-	// recieving name
-	std::cin >> name;
-	// printing "hello world from name"
-	std::cout << "Hello world from " << name << std::endl;
-	return 0;
-}
-```
-
-Ну и по классике:
-
+#### Создаем отдельную дирректорию build и собираем проект
 ```sh
-git commit -a -m "translated comments"
+mkdir build && cd build
+cmake ..
+cmake --build .
 ```
-
-```
-[main a1836b2] translated comments
- 1 file changed, 4 insertions(+), 6 deletions(-)
-```
-
+*Вывод1:*
 ```sh
-git push origin main
-```
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/vboxuser/satodim/workspace/workspace/projects/lab_03_reworked/build
 
 ```
-sUsername for 'https://github.com': satodim
-Password for 'https://ssatodim@github.com': 
-Enumerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 2 threads
-Compressing objects: 100% (3/3), done.
-Writing objects: 100% (3/3), 423 bytes | 423.00 KiB/s, done.
-Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
-remote: Resolving deltas: 100% (1/1), completed with 1 local object.
-To https://github.com/satodim/lab_02_rework.git
-   58b9617..a1836b2  main -> main
-
-```
-
-### Теперь переключимся на ветку `patch2`
+*Вывод2:*
 ```sh
-git checkout patch2
+[ 10%] Building CXX object formatter_lib/CMakeFiles/formatter.dir/formatter.cpp.o
+[ 20%] Linking CXX static library libformatter.a
+[ 20%] Built target formatter
+[ 30%] Building CXX object formatter_ex/CMakeFiles/formatter_ex.dir/formatter_ex.cpp.o
+[ 40%] Linking CXX static library libformatter_ex.a
+[ 40%] Built target formatter_ex
+[ 50%] Building CXX object solver_lib/CMakeFiles/solver_lib.dir/solver.cpp.o
+[ 60%] Linking CXX static library libsolver_lib.a
+[ 60%] Built target solver_lib
+[ 70%] Building CXX object hello_world/CMakeFiles/hello_world.dir/hello_world.cpp.o
+[ 80%] Linking CXX executable hello_world
+[ 80%] Built target hello_world
+[ 90%] Building CXX object solver/CMakeFiles/solver.dir/equation.cpp.o
+[100%] Linking CXX executable solver
+[100%] Built target solver
 ```
-
-И проверим наш pull-request, в этот раз посмотрим в том числе и на параметр `mergeable`
+#### Проверяем работу приложения solver, введя значения 1 17 9
 ```sh
-gh pr view --json number,title,author,commits,mergeable
+cd build/solver
+./solver
 ```
-
-```
-{
-  "author": {
-    "id": "U_kgDOCjA-pg",
-    "is_bot": false,
-    "login": "satodim",
-    "name": "satodim"
-  },
-  "commits": [
-    {
-      "authoredDate": "2026-04-01T06:20:37Z",
-      "authors": [
-        {
-          "email": "vovkakursk8@gmail.com",
-          "id": "U_kgDOCjA-pg",
-          "login": "satodim",
-          "name": "satodim"
-        }
-      ],
-      "committedDate": "2026-04-01T06:20:37Z",
-      "messageBody": "",
-      "messageHeadline": "changed code style",
-      "oid": "369623bb9d5a230c748a91990d1cabed385b5f82"
-    }
-  ],
-  "mergeable": "CONFLICTING",
-  "number": 2,
-  "title": "changed code style"
-}
-```
-
-И как можно заметить, этот параметр равен `CONFLICTING`, то есть действительно присутствуют конфликты.
-
-### Для этого локально выполните `pull` + `rebase` (точную последовательность команд, следует узнать самостоятельно). Исправьте конфликты.
-
-Для начала на всякий случай подтянем ветку `main`, чтобы она была синхронизированна с удалённым репозиторием.
-
+*Вывод:*
 ```sh
-git checkout main
-git pull origin main
+-------------------------
+x1 = -16.452988
+-------------------------
+-------------------------
+x2 = -0.547013
+-------------------------
 ```
-
-У меня оно и так уже было up-to-date, поэтому я получил следующий вывод:
-
-```
-From https://github.com/satodim/lab_02_rework
- * branch            main       -> FETCH_HEAD
-Already up to date.
-```
-
-Дальше переключаемся на другую ветку и пытаемся ее перебазировать:
-
+#### Проверяем работу приложения hello_world
 ```sh
-git checkout patch2
-git rebase main
+cd ..
+cd hello_world
 ```
-
-На что гит выведет следующее сообщение:
-```
-Auto-merging hello_world.cpp
-CONFLICT (content): Merge conflict in hello_world.cpp
-error: could not apply 369623b... changed code style
-hint: Resolve all conflicts manually, mark them as resolved with
-hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-hint: You can instead skip this commit: run "git rebase --skip".
-hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
-Could not apply 369623b... changed code style
-
-```
-
-А `hello_world.cpp` стал вот таким:
-
-```cpp
-// including standard IO library
-#include <iostream>
-
-<<<<<<< HEAD
-int main() {
-	// creating string for name
-	std::string name;
-	// recieving name
-	std::cin >> name;
-	// printing "hello world from name"
-	std::cout << "Hello world from " << name << std::endl;
-	return 0;
-=======
-int
-main()
-{
-  // Создаем строку для имени
-  std::string name;
-  // Принимаем имя
-  std::cin >> name;
-  // Печатаем
-  std::cout << "Hello world from " << name << std::endl;
-  return 0;
->>>>>>> 0c61fbe (changed code style)
-}
-```
-
-Исправим конфликт, совместив английские комментарии с другим стилем кода:
+*Вывод:*
 ```sh
-// including standard IO library
-#include <iostream>
-
-int
-main()
-{
-  // creating string for name
-  std::string name;
-  // recieving name
-  std::cin >> name;
-  // printing "hello world from name"
-  std::cout << "Hello world from " << name << std::endl;
-  return 0;
-}
+-------------------------
+hello, world!
+-------------------------
 ```
 
-Теперь пометим этот файл как переделанный с помощью команды 
-```sh
-git add hello_world.cpp
-```
 
-И продолжим перебазирование:
-```sh
-git rebase --continue
-```
 
-Других конфликтов не возникло. Гит предложил ввести название этого перебазирования и потом вывел это:
-```
-[detached HEAD a345626] 	changed code style
- 1 file changed, 10 insertions(+), 8 deletions(-)
-Successfully rebased and updated refs/heads/patch2.
-```
 
-### Сделайте force push в ветку `patch2`
-
-```sh
-git push --force origin patch2
-```
-
-```
-Username for 'https://github.com': satodim
-Password for 'https://satodim@github.com': 
-Enumerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 2 threads
-Compressing objects: 100% (3/3), done.
-Writing objects: 100% (3/3), 431 bytes | 431.00 KiB/s, done.
-Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
-remote: Resolving deltas: 100% (1/1), completed with 1 local object.
-To https://github.com/satodim/lab_02_rework.git
- + 369623b...a345626 patch2 -> patch2 (forced update)
-
-```
-
-### Убедитесь, что в pull-request пропали конфликтны.
-
-Делаем это уже привычным для нас образом
-
-```sh
-gh pr view --json number,title,author,commits,mergeable
-```
-
-```
-{
-  "author": {
-    "id": "U_kgDOCjA-pg",
-    "is_bot": false,
-    "login": "satodim",
-    "name": "satodim"
-  },
-  "commits": [
-    {
-      "authoredDate": "2026-04-01T06:20:37Z",
-      "authors": [
-        {
-          "email": "vovkakursk8@gmail.com",
-          "id": "U_kgDOCjA-pg",
-          "login": "satodim",
-          "name": "satodim"
-        }
-      ],
-      "committedDate": "2026-04-01T06:26:07Z",
-      "messageBody": "",
-      "messageHeadline": "\tchanged code style",
-      "oid": "a34562688e3090be863424752eaa384e55d35066"
-    }
-  ],
-  "mergeable": "MERGEABLE",
-  "number": 2,
-  "title": "changed code style"
-}
-```
-
-Теперь переменная `mergeable` равна `MERGEABLE`.
-
-### Вмержите pull-request `patch2` -> `master`.
-
-Сделал это на гитхабе.
-
-Теперь можно посмотреть последние 2 коммита и убедиться, что слияние прошло успешно:
-```sh
-git checkout main
-git log -2
-```
-
-```
-commit a1836b223775d299535dff15546307f454838efe (HEAD -> main, origin/main)
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 06:23:20 2026 +0000
-
-    translated comments
-
-commit 58b96171292f6386d087a290c1ed15d3961b5326
-Merge: da64f08 ec63d76
-Author: satodim <vovkakursk8@gmail.com>
-Date:   Wed Apr 1 09:17:50 2026 +0300
-
-    Merge pull request #1 from satodim/patch1
-    
-    removed using namespace std
 
